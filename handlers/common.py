@@ -22,6 +22,21 @@ async def process_role(message: types.Message, state: FSMContext):
     await state.set_state(LNDStates.main_menu)
     await message.answer(f"Вітаю, {message.text}! Чим можу допомогти?", reply_markup=get_main_menu_kb())
 
+# ДОБАВИЛ КНОПКУ НАЗАД И ЕЕ ОБРАБОТКУ
+@router.message(LNDStates.main_menu)
+async def main_menu_handler(message: types.Message, state: FSMContext):
+    if message.text == "⬅️ Назад":
+        # возвращаемся к выбору роли
+        await state.set_state(LNDStates.choosing_role)
+        await message.answer("Оберіть вашу роль:", reply_markup=get_role_kb())
+    elif message.text == "1. Список наявних курсів":
+        await message.answer("Список курсів...")
+    elif message.text == "2. Потрібна підтримка":
+        await message.answer("Тут підтримка...")
+    elif message.text == "3. Дізнатися деталі мого курсу":
+        await message.answer("Деталі курсу...")
+    else:
+        await message.answer("Вибачте, я не зрозумів запит 😔\nБудь ласка, скористайтеся кнопками меню.")
 
 # --- Обробка кнопок головного меню ---
 
