@@ -57,11 +57,16 @@ async def show_price(callback: types.CallbackQuery):
 
     if (course):
 
-        price = course['price_current']
+        price_original = course['price_original']
+        price_current = course['price_current']
         currency = course['currency']
-        if (price):
+
+        if (price_original and price_current and price_current != price_original):
             await callback.message.answer(
-                f"💰 Вартість навчання: <b>{price} {currency}</b>\n",  parse_mode=ParseMode.HTML)
+                f"💰 Вартість навчання: <s>{price_original}</s> <b>{price_current} {currency}</b>\n",  parse_mode=ParseMode.HTML)
+        elif (price_current):
+            await callback.message.answer(
+                f"💰 Вартість навчання: <b>{price_current} {currency}</b> \n",  parse_mode=ParseMode.HTML)
         else:
             price = course['free_price']
             await callback.message.answer(
@@ -81,7 +86,8 @@ async def show_payment_methods(callback: types.CallbackQuery):
         "1. Карткою на сайті.\n"
         "2. Рахунок-фактура (B2B).\n"
         "3. Оплата частинами.\n\n"
-        "⚠️ *Бот не приймає кошти*"
+        "🎫 <i><b>Якщо у вас є персональний промокод на знижку, будь ласка, введіть його в поле коментарів реєстраційної форми на сайті</b></i>  \n \n"
+        "⚠️ <i><b>Бот не приймає кошти</b></i>"
     )
     await callback.message.answer(text, parse_mode=ParseMode.HTML)
     await callback.answer()
