@@ -1,7 +1,11 @@
 from aiogram import Router, types, F
+from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
-from database import COURSES
+
 from states import LNDStates
+
+from html import unescape
+
 from keyboards.inline import (
     get_courses_list_kb,
     get_course_details_kb,
@@ -9,51 +13,79 @@ from keyboards.inline import (
     get_experience_kb
 )
 
-router = Router()
+from parser import Parser
 
+router = Router()
+parser = Parser()
+
+courses_list = parser.parse()
+
+active_courses = [c for c in courses_list if not c['is_time_expired']]
 
 # Сценарій 2: Список курсів
 @router.message(F.text == "1. Список наявних курсів")
 async def show_courses_list(message: types.Message):
-    await message.answer("Ось актуальні курси Sigma Software University:", reply_markup=get_courses_list_kb(COURSES))
+    await message.answer("Ось актуальні курси Sigma Software University:", reply_markup=get_courses_list_kb(active_courses))
 
 
 # Сценарій 3 & 6: Деталі курсу
 @router.callback_query(F.data.startswith("course_"))
 async def show_course_details(callback: types.CallbackQuery):
-    cid = callback.data.split("_")[1]
-    course = COURSES[cid]
-    text = (
-        f"📘 **{course['name']}**\n\n"
-        f"{course['details']}\n\n"
-        f"📅 **Старт:** {course['start_date']}\n"
-        f"💻 **Формат:** {course['format']}"
-    )
-    await callback.message.edit_text(text, reply_markup=get_course_details_kb(cid))
+    cid = int(callback.data.split("_")[1])
+    course = next((item for item in courses_list if item["postId"] == cid), None)
+
+    if (course):
+
+        text = (
+            f"📘<b>{course['title']}</b>\n\n"
+            f"{unescape(course['content'])} <a href='{course['permalink']}'>сайт курсу</a>\n\n"
+            f"📅 Старт: <b>{course['date_start']}, {course['time_start']}</b>\n"
+            f"💻 Формат: <b>{course['location']}</b>\n"
+            f"🕐 Тривалість: <b>{course['duration']}</b>\n"
+        )
+
+        await callback.message.edit_text(text, reply_markup=get_course_details_kb(cid), parse_mode=ParseMode.HTML, link_preview_options=types.LinkPreviewOptions(is_disabled=True))
+    else:
+        await callback.message.edit_text("Something went wrong")
 
 
 # Сценарій 4: Вартість
 @router.callback_query(F.data.startswith("price_"))
 async def show_price(callback: types.CallbackQuery):
-    cid = callback.data.split("_")[1]
-    price = COURSES[cid]['price']
-    await callback.message.answer(
-        f"💰 Вартість навчання: **{price}**.\nУ ціну входять лекції, перевірка ДЗ та сертифікат.")
-    await callback.answer()
+    cid = int(callback.data.split("_")[1])
+    course = next((item for item in courses_list if item["postId"] == cid), None)
+
+    if (course):
+
+        price = course['price_current']
+        currency = course['currency']
+        if (price):
+            await callback.message.answer(
+                f"💰 Вартість навчання: <b>{price} {currency}</b>\n",  parse_mode=ParseMode.HTML)
+        else:
+            price = course['free_price']
+            await callback.message.answer(
+                f"💰 Вартість навчання: <b>{price}</b>\n", parse_mode=ParseMode.HTML)
+    
+        await callback.answer()
+        
 
 
 # Сценарій 5: Оплата
 @router.callback_query(F.data.startswith("pay_"))
 async def show_payment_methods(callback: types.CallbackQuery):
+    cid = int(callback.data.split("_")[1])
+
     text = (
-        "💳 **Способи оплати:**\n"
+        "💳 <b>Способи оплати:</b>\n"
         "1. Карткою на сайті.\n"
         "2. Рахунок-фактура (B2B).\n"
         "3. Оплата частинами.\n\n"
-        "⚠️ *Бот не приймає кошти. Посилання надішле менеджер.*"
+        "⚠️ *Бот не приймає кошти*"
     )
-    await callback.message.answer(text)
+    await callback.message.answer(text, parse_mode=ParseMode.HTML)
     await callback.answer()
+        
 
 
 # --- СЦЕНАРІЙ 7: Перевірка відповідності (2 етапи) ---

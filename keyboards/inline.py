@@ -2,8 +2,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def get_courses_list_kb(courses):
     # Сценарій 2
-    buttons = [[InlineKeyboardButton(text=c["name"], callback_data=f"course_{cid}")]
-               for cid, c in courses.items()]
+    buttons = [[InlineKeyboardButton(text=c["title"], callback_data=f"course_{c["postId"]}")]
+               for c in courses]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_course_details_kb(course_id):
