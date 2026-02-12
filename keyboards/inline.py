@@ -31,3 +31,39 @@ def get_experience_kb():
         [InlineKeyboardButton(text="Трохи пробував", callback_data="exp_1")],
         [InlineKeyboardButton(text="Пишу складні запити", callback_data="exp_2")]
     ])
+
+def get_support_kb():
+    # Сценарії 8, 10
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❓ FAQ", callback_data=f"faq")],
+        [InlineKeyboardButton(text="👨‍💼 Зв'язатися з менеджером", callback_data="contact_manager")]
+    ])
+
+def get_question_list_kb(questions, course_id = None):
+    # Сценарій 8
+    buttons = []
+    for idx, item in enumerate(questions):
+        question_text = item.get("question", "").strip()
+        if course_id is not None:
+            callback_data = f"faq_{course_id}_item_{idx}"
+            back_data = f"course_{course_id}"
+        else:
+            callback_data = f"faq_item_{idx}"
+            back_data = "back_to_support"
+        buttons.append([
+            InlineKeyboardButton(
+                text=question_text,
+                callback_data=callback_data
+            )
+        ])
+    buttons.append([InlineKeyboardButton(
+                text="⬅️ Повернутися назад",
+                callback_data=back_data
+            )
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_back_to_list_kb(prefix):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Повернутися до списку", callback_data=prefix)],
+    ])

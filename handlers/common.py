@@ -3,6 +3,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from states import LNDStates
 from keyboards.reply import get_role_kb, get_main_menu_kb
+from keyboards.inline import get_support_kb
 from config import ADMIN_ID
 
 router = Router()
@@ -22,39 +23,30 @@ async def process_role(message: types.Message, state: FSMContext):
     await state.set_state(LNDStates.main_menu)
     await message.answer(f"Вітаю, {message.text}! Чим можу допомогти?", reply_markup=get_main_menu_kb())
 
-# ДОБАВИЛ КНОПКУ НАЗАД И ЕЕ ОБРАБОТКУ
-@router.message(LNDStates.main_menu)
-async def main_menu_handler(message: types.Message, state: FSMContext):
-    if message.text == "⬅️ Назад":
-        # возвращаемся к выбору роли
-        await state.set_state(LNDStates.choosing_role)
-        await message.answer("Оберіть вашу роль:", reply_markup=get_role_kb())
-    elif message.text == "1. Список наявних курсів":
-        await message.answer("Список курсів...")
-    elif message.text == "2. Потрібна підтримка":
-        await message.answer("Тут підтримка...")
-    elif message.text == "3. Дізнатися деталі мого курсу":
-        await message.answer("Деталі курсу...")
-    else:
-        await message.answer("Вибачте, я не зрозумів запит 😔\nБудь ласка, скористайтеся кнопками меню.")
-
-# --- Обробка кнопок головного меню ---
 
 # Кнопка 2: Підтримка
 @router.message(F.text.contains("Потрібна підтримка"))
-async def support_handler(message: types.Message):
+async def support_handler(message_or_callback):
     text = (
-        "🛠 **Служба підтримки L&D**\n\n"
+        "🛠 Служба підтримки\n\n"
         "Якщо у вас виникли технічні проблеми або питання щодо організації, "
-        "ви можете зв'язатися з менеджером напряму."
+        "ви можете зв'язатися з менеджером напряму або переглянути часті запитання."
     )
-    # Використовуємо інлайн-клавіатуру з common/courses або створюємо тут
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👨‍💼 Зв'язатися з менеджером", callback_data="contact_manager")]
-    ])
-    await message.answer(text, reply_markup=kb)
-
+    if hasattr(message_or_callback, "message"):  # callback
+        await message_or_callback.message.edit_text(
+            text,
+            reply_markup=get_support_kb()
+        )
+        await message_or_callback.answer()
+    else:  # message
+        await message_or_callback.answer(
+            text,
+            reply_markup=get_support_kb()
+        )
+        
+@router.callback_query(F.data == "back_to_support")
+async def back_to_support(callback: types.CallbackQuery):
+    await support_handler(callback)
 
 # Кнопка 3: Деталі мого курсу (Заглушка, бо немає бази користувачів)
 @router.message(F.text.contains("Дізнатися деталі мого курсу"))

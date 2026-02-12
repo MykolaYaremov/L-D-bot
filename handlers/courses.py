@@ -10,7 +10,9 @@ from keyboards.inline import (
     get_courses_list_kb,
     get_course_details_kb,
     get_knowledge_kb,
-    get_experience_kb
+    get_experience_kb,
+    get_question_list_kb,
+    get_back_to_list_kb
 )
 
 from parser import Parser
@@ -18,7 +20,7 @@ from parser import Parser
 router = Router()
 parser = Parser()
 
-courses_list = parser.parse()
+courses_list = parser.parse_courses()
 
 active_courses = [c for c in courses_list if not c['is_time_expired']]
 
@@ -130,6 +132,55 @@ async def finish_check(callback: types.CallbackQuery, state: FSMContext):
     else:
         res = "✅ **Вам підходить.** Курс структурує ваші знання."
 
-    await callback.message.answer(res)
+    await callback.message.edit_text(res)
     await state.set_state(LNDStates.main_menu)  # Повертаємо в меню
     await callback.answer()
+
+# 8. FAQ курсу (список питань)
+@router.callback_query(F.data.startswith("faq_") & ~F.data.contains("_item_"))
+async def show_course_faq(callback: types.CallbackQuery):
+    cid = int(callback.data.split("_")[1])
+    course = next((item for item in courses_list if item["postId"] == cid), None)
+    
+    if course:
+        faq_list = parser.parse_faq(course["permalink"])
+
+        if not faq_list:
+            await callback.message.edit_text("Питання відсутні.")
+            await callback.answer()
+            return
+
+        await callback.message.edit_text(
+            "Часті запитання по цьому курсу:",
+            reply_markup=get_question_list_kb(faq_list, course_id=cid)
+        )
+        await callback.answer()
+
+# 8. FAQ курсу (відповідь на питання)
+@router.callback_query(
+    F.data.regexp(r"^faq_\d+_item_\d+$")
+)
+async def show_course_faq_item(callback: types.CallbackQuery):
+    parts = callback.data.split("_")
+    cid = int(parts[1])
+    idx = int(parts[3])
+
+    course = next((item for item in courses_list if item["postId"] == cid), None)
+
+    if course:
+
+        faq_list = parser.parse_faq(course["permalink"])
+
+        try:
+            item = faq_list[idx]
+            text = f"<b>{item['question']}</b>\n\n{item['answer']}"
+
+            await callback.message.edit_text(
+                text,
+                parse_mode="HTML",
+                reply_markup=get_back_to_list_kb(f"faq_{cid}")
+            )
+        except IndexError:
+            await callback.message.edit_text("Питання не знайдено")
+
+        await callback.answer()
