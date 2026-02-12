@@ -4,6 +4,7 @@ from aiogram.fsm.state import StatesGroup, State
 class LNDStates(StatesGroup):
     authorisation = State()  # Сценарій 1
     main_menu = State()  # Головне меню
+    support_reason = State()  # новий стан для введення причини
 
     # Сценарій 7 (Quiz)
     check_knowledge = State()  # Питання 1: Рівень знань

@@ -63,29 +63,38 @@ async def my_course_handler(message: types.Message):
     await message.answer(
         "ℹ️ На даний момент за вашим акаунтом не закріплено активних курсів.\nСпробуйте обрати новий курс у меню 'Список наявних курсів'.")
 
+@router.callback_query(F.data == "contact_manager")
+async def ask_support_reason(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(LNDStates.support_reason)
+    await callback.message.answer("Будь ласка, коротко опишіть причину звернення:")
+    await callback.answer()
 
 # --- Сценарій 10: Передача діалогу (Handover) ---
-@router.callback_query(F.data == "contact_manager")
-async def contact_manager(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+@router.message(LNDStates.support_reason)
+async def contact_manager(message: types.Message, state: FSMContext, bot: Bot):
+    await state.update_data(support_reason=message.text)
+
     user_data = await state.get_data()
-    role = user_data.get("role", "Невідомо")
-    username = callback.from_user.username or "Без ніку"
+    username = message.from_user.username or "Без ніку"
+    phone_number = user_data.get("phone_number", "Немає")
+    reason = user_data.get("support_reason", "Немає причини")
 
-    await callback.message.answer("⏳ Запит прийнято! Менеджер отримав ваше звернення і напише вам в особисті.")
-
+    await message.answer("⏳ Ваш запит прийнято! Менеджер зв'яжеться з вами найближчим часом.")
+    
     if ADMIN_ID:
         try:
             msg = (
                 f"🆘 **Новий запит!**\n"
-                f"👤 Юзер: @{username} (ID: {callback.from_user.id})\n"
-                f"🎓 Роль: {role}"
+                f"👤 Юзер: @{username} (ID: {message.from_user.id})\n"
+                f"📞 Телефон: {phone_number}\n"
+                f"💬 Причина: {reason}"
             )
             await bot.send_message(chat_id=ADMIN_ID, text=msg)
         except Exception as e:
             print(f"Помилка відправки адміну: {e}")
 
-    await callback.answer()
-
+    await state.set_state(LNDStates.main_menu)
+    await message.answer("Чим можу допомогти?", reply_markup=get_main_menu_kb())
 
 # --- Сценарій 9: Fallback (Останній рубіж) ---
 @router.message()
