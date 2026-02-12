@@ -79,7 +79,7 @@ async def contact_manager(message: types.Message, state: FSMContext, bot: Bot):
     phone_number = user_data.get("phone_number", "Немає")
     reason = user_data.get("support_reason", "Немає причини")
 
-    await message.answer("⏳ Ваш запит прийнято! Менеджер зв'яжеться з вами найближчим часом.")
+    await message.answer("⏳ Запит прийнято! Менеджер отримав ваше звернення і напише вам в особисті.")
     
     if ADMIN_ID:
         try:
