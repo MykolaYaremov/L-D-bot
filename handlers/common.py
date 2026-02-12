@@ -2,7 +2,7 @@ from aiogram import Router, types, F, Bot
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from states import LNDStates
-from keyboards.reply import get_role_kb, get_main_menu_kb
+from keyboards.reply import get_contact_kb, get_main_menu_kb
 from keyboards.inline import get_support_kb
 from config import ADMIN_ID
 
@@ -13,15 +13,24 @@ router = Router()
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
-    await state.set_state(LNDStates.choosing_role)
-    await message.answer("Привіт! Я L&D бот Sigma Software.\nОберіть вашу роль:", reply_markup=get_role_kb())
+    await state.set_state(LNDStates.authorisation)
+    await message.answer("Привіт! Я L&D бот Sigma Software\nПоділіться контактом для подальшої роботи", reply_markup=get_contact_kb())
 
 
-@router.message(LNDStates.choosing_role)
-async def process_role(message: types.Message, state: FSMContext):
-    await state.update_data(role=message.text)
+@router.message(LNDStates.authorisation, F.contact)
+async def process_contact(message: types.Message, state: FSMContext):
+
+    contact = message.contact
+
+    await state.update_data(
+        phone_number=contact.phone_number,
+        first_name=contact.first_name,
+        user_id=contact.user_id
+    )
+
     await state.set_state(LNDStates.main_menu)
-    await message.answer(f"Вітаю, {message.text}! Чим можу допомогти?", reply_markup=get_main_menu_kb())
+
+    await message.answer(f"Вітаю, {contact.first_name}! Чим можу допомогти?", reply_markup=get_main_menu_kb())
 
 
 # Кнопка 2: Підтримка
