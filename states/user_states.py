@@ -2,7 +2,7 @@ from aiogram.fsm.state import StatesGroup, State
 
 
 class LNDStates(StatesGroup):
-    choosing_role = State()  # Сценарій 1
+    authorisation = State()  # Сценарій 1
     main_menu = State()  # Головне меню
 
     # Сценарій 7 (Quiz)

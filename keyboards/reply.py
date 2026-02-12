@@ -1,10 +1,21 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
+# Сценарій 1 (старий)
 def get_role_kb():
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text="Студент"), KeyboardButton(text="Кандидат")],
         [KeyboardButton(text="PRO"), KeyboardButton(text="Admin")]
     ], resize_keyboard=True, one_time_keyboard=True)
+
+# Сценарій 1 (новий)
+def get_contact_kb():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Поділитися контактом", request_contact=True)]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
 
 def get_main_menu_kb():
     return ReplyKeyboardMarkup(keyboard=[
