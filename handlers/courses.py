@@ -77,23 +77,28 @@ async def show_price(callback: types.CallbackQuery):
         await callback.answer()
         
 
-
 # Сценарій 5: Оплата
 @router.callback_query(F.data.startswith("pay_"))
 async def show_payment_methods(callback: types.CallbackQuery):
     cid = int(callback.data.split("_")[1])
+    course = next((item for item in courses_list if item["postId"] == cid), None)
 
-    text = (
-        "💳 <b>Способи оплати:</b>\n"
-        "1. Карткою на сайті.\n"
-        "2. Рахунок-фактура (B2B).\n"
-        "3. Оплата частинами.\n\n"
-        "🎫 <i><b>Якщо у вас є персональний промокод на знижку, будь ласка, введіть його в поле коментарів реєстраційної форми на сайті</b></i>  \n \n"
-        "⚠️ <i><b>Бот не приймає кошти</b></i>"
-    )
-    await callback.message.answer(text, parse_mode=ParseMode.HTML)
-    await callback.answer()
+    if (course):
+        enable_payment_by_part = course['enable_payment_by_part']
+        text = (
+            "💳 <b>Способи оплати:</b>\n"
+            "1. Карткою на сайті.\n"
+            "2. Рахунок-фактура (B2B).\n"  
+        )
+
+        if(enable_payment_by_part):
+            text += "3. Доступна оплата частинами\n"
+
+        text += ("\n🎫 <i><b>Якщо у вас є персональний промокод на знижку, будь ласка, введіть його в поле коментарів реєстраційної форми на сайті</b></i>  \n \n"
+            "⚠️ <i><b>Бот не приймає кошти</b></i>")
         
+        await callback.message.answer(text, parse_mode=ParseMode.HTML)
+        await callback.answer()
 
 
 # --- СЦЕНАРІЙ 7: Перевірка відповідності (2 етапи) ---
