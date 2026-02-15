@@ -56,8 +56,8 @@ async def support_handler(event: types.Message | types.CallbackQuery, state: FSM
         )
         
 @router.callback_query(F.data == "back_to_support")
-async def back_to_support(callback: types.CallbackQuery):
-    await support_handler(callback)
+async def back_to_support(callback: types.CallbackQuery, state: FSMContext):
+    await support_handler(callback, state)
 
 # Кнопка 3: Деталі мого курсу (Заглушка, бо немає бази користувачів)
 @router.message(F.text.contains("Дізнатися деталі мого курсу"))

@@ -10,3 +10,4 @@ class LNDStates(StatesGroup):
     # Сценарій 7 (Quiz)
     check_knowledge = State()  # Питання 1: Рівень знань
     check_experience = State()  # Питання 2: Досвід
+    check_extra = State() # Досвід/Задачі

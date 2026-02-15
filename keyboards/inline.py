@@ -21,15 +21,7 @@ def get_knowledge_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Повний нуль", callback_data="know_0")],
         [InlineKeyboardButton(text="Маю базу", callback_data="know_1")],
-        [InlineKeyboardButton(text="Працюю в IT", callback_data="know_2")]
-    ])
-
-def get_experience_kb():
-    # Сценарій 7 (Питання 2)
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Ніколи не писав SQL", callback_data="exp_0")],
-        [InlineKeyboardButton(text="Трохи пробував", callback_data="exp_1")],
-        [InlineKeyboardButton(text="Пишу складні запити", callback_data="exp_2")]
+        [InlineKeyboardButton(text="Високий рівень", callback_data="know_2")]
     ])
 
 def get_support_kb():

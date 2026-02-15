@@ -2,6 +2,7 @@ from aiogram import Router, types, F
 from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
 
+from config import COURSE_CONFIG, DEFAULT_QUESTIONS
 from states import LNDStates
 
 from html import unescape
@@ -10,7 +11,6 @@ from keyboards.inline import (
     get_courses_list_kb,
     get_course_details_kb,
     get_knowledge_kb,
-    get_experience_kb,
     get_question_list_kb,
     get_back_to_list_kb
 )
@@ -142,57 +142,148 @@ async def text_payment_methods(message: types.Message, state: FSMContext):
         await perform_show_payment_methods(message, cid)
 
 
+# --- СЦЕНАРІЙ 7: Глибока перевірка (3 питання) ---
 
-# --- СЦЕНАРІЙ 7: Перевірка відповідності (2 етапи) ---
+# Допоміжна функція для визначення мінімального рівня курсу
+def get_min_course_level(seniority_list: list) -> int:
+    slugs = [s['slug'] for s in seniority_list]
+    if 'beginner' in slugs:
+        return 0
+    elif 'middle' in slugs:
+        return 1
+    elif 'advanced' in slugs:
+        return 2
+    return 0
 
-# Крок 1: Питання про знання 
+
+# ----------------- ПИТАННЯ 1 -----------------
 async def perform_start_check(event: types.Message | types.CallbackQuery, state: FSMContext):
     await state.set_state(LNDStates.check_knowledge)
-    text = "1️⃣ Як ви оцінюєте свої теоретичні знання?"
+
+    data = await state.get_data()
+    cid = data.get("current_course_id")
+    course = next((item for item in courses_list if item["postId"] == cid), None)
+
+    if not course:
+        await event.answer("Спочатку оберіть курс.")
+        return
+
+    questions = COURSE_CONFIG.get(cid, DEFAULT_QUESTIONS)
+
+    text = (
+        f"🎯 <b>Тест на відповідність курсу «{course['title']}»</b>\n\n"
+        f"1️⃣ {questions['q1']}"
+    )
+
+    # Використовуємо клавіатуру (0=Ні, 1=Трохи, 2=Так)
     kb = get_knowledge_kb()
 
     if isinstance(event, types.CallbackQuery):
-        await event.message.answer(text, reply_markup=kb)
+        await event.message.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
         await event.answer()
     else:
-        await event.answer(text, reply_markup=kb)
+        await event.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
 
 @router.callback_query(F.data.startswith("check_"))
-@router.message(LNDStates.current_course, 
-                F.text.lower().contains("чи підійде") | 
+@router.message(LNDStates.current_course,
+                F.text.lower().contains("чи підійде") |
                 F.text.lower().contains("рівень"))
-async def start_check(callback: types.CallbackQuery, state: FSMContext):
-    await perform_start_check(callback, state)
-
-
-# Крок 2: Питання про досвід
-@router.callback_query(LNDStates.check_knowledge)
-async def ask_experience(callback: types.CallbackQuery, state: FSMContext):
-    # Зберігаємо відповідь 1
-    await state.update_data(knowledge=callback.data)
-
-    await state.set_state(LNDStates.check_experience)
-    await callback.message.edit_text("2️⃣ Чи був у вас практичний досвід з базами даних?",
-                                     reply_markup=get_experience_kb())
-
-
-# Крок 3: Результат
-@router.callback_query(LNDStates.check_experience)
-async def finish_check(callback: types.CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    knowledge = data.get("knowledge")
-    experience = callback.data
-
-    # Логіка "розумного" підбору
-    if knowledge == "know_2" and experience == "exp_2":
-        res = "⚠️ **Цей курс може бути занадто легким для вас.** Він розрахований на новачків."
-    elif knowledge == "know_0" and experience == "exp_0":
-        res = "✅ **Ідеально підходить!** Ми вчимо з самого нуля."
+async def start_check(event: types.Message | types.CallbackQuery, state: FSMContext):
+    if isinstance(event, types.CallbackQuery):
+        await perform_start_check(event, state)
     else:
-        res = "✅ **Вам підходить.** Курс структурує ваші знання."
+        data = await state.get_data()
+        if data.get("current_course_id"):
+            await perform_start_check(event, state)
+        else:
+            await event.answer("Оберіть курс зі списку.")
 
-    await callback.message.edit_text(res)
-    await state.set_state(LNDStates.current_course)  # Повертаємо у стан обраного курсу
+
+# ----------------- ПИТАННЯ 2 -----------------
+@router.callback_query(LNDStates.check_knowledge)
+async def ask_q2(callback: types.CallbackQuery, state: FSMContext):
+    # Зберігаємо бал за 1 питання (0, 1 або 2)
+    score_1 = int(callback.data.split("_")[1])
+    await state.update_data(score_1=score_1)
+
+    await state.set_state(LNDStates.check_experience)  # Переходимо до 2 питання
+
+    data = await state.get_data()
+    cid = data.get("current_course_id")
+    questions = COURSE_CONFIG.get(cid, DEFAULT_QUESTIONS)
+
+    text = f"2️⃣ {questions['q2']}"
+
+    # Використовуємо ту саму клавіатуру, або get_experience_kb, якщо вона повертає такі ж значення
+    await callback.message.edit_text(text, reply_markup=get_knowledge_kb(), parse_mode=ParseMode.HTML)
+
+
+# ----------------- ПИТАННЯ 3 (НОВЕ) -----------------
+@router.callback_query(LNDStates.check_experience)
+async def ask_q3(callback: types.CallbackQuery, state: FSMContext):
+    # Зберігаємо бал за 2 питання
+    score_2 = int(callback.data.split("_")[1])
+    await state.update_data(score_2=score_2)
+
+    await state.set_state(LNDStates.check_extra)  # Переходимо до 3 питання
+
+    data = await state.get_data()
+    cid = data.get("current_course_id")
+    questions = COURSE_CONFIG.get(cid, DEFAULT_QUESTIONS)
+
+    text = f"3️⃣ {questions['q3']}"
+
+    await callback.message.edit_text(text, reply_markup=get_knowledge_kb(), parse_mode=ParseMode.HTML)
+
+
+# ----------------- ФІНАЛ (Розрахунок) -----------------
+@router.callback_query(LNDStates.check_extra)
+async def finish_check(callback: types.CallbackQuery, state: FSMContext):
+    # Отримуємо бал за 3 питання
+    score_3 = int(callback.data.split("_")[1])
+
+    data = await state.get_data()
+    score_1 = data.get("score_1", 0)
+    score_2 = data.get("score_2", 0)
+    cid = data.get("current_course_id")
+
+    # --- МАТЕМАТИКА ---
+    # Максимальна сума балів = 6. Ділимо на 3 питання.
+    # Результат: 0..0.6 -> Beginner (0), 0.7..1.4 -> Middle (1), 1.5..2 -> Advanced (2)
+    avg_score = (score_1 + score_2 + score_3) / 3
+    user_level = round(avg_score)
+
+    # Отримуємо дані про курс
+    course = next((item for item in courses_list if item["postId"] == cid), None)
+    course_level = get_min_course_level(course.get('seniority', []))
+
+    res_text = ""
+
+    # Логіка порівняння (та сама, але тепер точніша завдяки 3 питанням)
+    if user_level < course_level:
+        res_text = (
+            "⚠️ <b>Вам може бути складно.</b>\n\n"
+            f"Курс вимагає рівня <b>{course.get('seniority', [{'name': 'Middle'}])[0]['name']}</b>, а ваші відповіді вказують на те, що вам бракує деяких базових навичок. "
+            "Рекомендуємо підтягнути базу перед стартом."
+        )
+    elif course_level == 0 and user_level == 2:
+        res_text = (
+            "⚠️ <b>Курс може бути залегким.</b>\n\n"
+            "Це програма для старту з нуля. З вашим досвідом (бали 3/3) вам може бути нудно на перших модулях."
+        )
+    else:
+        res_text = (
+            "✅ <b>Це ідеальний метч!</b>\n\n"
+            "Ваш рівень знань та досвід чудово відповідають вимогам програми. "
+            "Ви зможете взяти максимум від цього навчання."
+        )
+
+    # Додаємо кнопку повернення
+    back_kb = get_course_details_kb(cid)
+
+    await callback.message.edit_text(res_text, reply_markup=back_kb, parse_mode=ParseMode.HTML)
+    await state.set_state(LNDStates.current_course)
     await callback.answer()
 
 
