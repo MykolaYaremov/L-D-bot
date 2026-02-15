@@ -2,8 +2,9 @@ from aiogram.fsm.state import StatesGroup, State
 
 
 class LNDStates(StatesGroup):
-    authorisation = State()  # Сценарій 1
     main_menu = State()  # Головне меню
+    waiting_for_support_contact = State()  # НОВИЙ СТАН (чекаємо номер)
+    waiting_for_support_reason = State()  # НОВИЙ СТАН (чекаємо текст питання)
     support_reason = State()  # новий стан для введення причини
     course_list = State() # список курсів
     current_course = State() # поточний курс
