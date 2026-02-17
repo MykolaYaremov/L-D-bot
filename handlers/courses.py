@@ -20,6 +20,7 @@ from handlers.common import send_interface_message
 router = Router()
 parser = Parser()
 
+update_lock = asyncio.Lock()
 
 # --- ВАЖЛИВА ЗМІНА: ОТРИМАННЯ ДАНИХ ---
 # Ми прибираємо глобальні змінні courses_list = ...
@@ -32,7 +33,8 @@ async def get_dataset():
     не блокував роботу бота, якщо настав час оновлення (раз на 24 год).
     """
     # Запускаємо синхронний метод парсера в окремому потоці
-    raw_courses = await asyncio.to_thread(parser.parse_courses)
+    async with update_lock:
+        raw_courses = await asyncio.to_thread(parser.parse_courses)
     # Фільтруємо прострочені курси
     return [c for c in raw_courses if not c['is_time_expired']]
 
