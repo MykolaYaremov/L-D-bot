@@ -1,38 +1,32 @@
 from aiogram import Router, types, F
-from keyboards.inline import (
-    get_question_list_kb,
-    get_back_to_list_kb
-)
+from keyboards.inline import get_question_list_kb, get_back_to_list_kb
 from parser import Parser
 
 router = Router()
 parser = Parser()
 
-@router.callback_query(F.data == "faq")
-async def default_faq_list(event: types.Message | types.CallbackQuery):
+
+# Вхід в ЗАГАЛЬНИЙ FAQ (з меню підтримки)
+# Важливо: в inline.py кнопка має callback_data="faq_general"
+@router.callback_query(F.data == "faq_general")
+async def default_faq_list(callback: types.CallbackQuery):
+    # Парсимо загальні питання
     faq_list = parser.parse_faq()
 
     if not faq_list:
         text = "Питання відсутні наразі."
+        kb = None  # Або кнопка назад
     else:
-        text = "Часті питання (FAQ):"
-        kb = get_question_list_kb(faq_list)
+        text = "❓ <b>Часті питання (Загальні):</b>"
+        # course_id=None -> означає, що кнопки "Назад до курсу" не буде
+        kb = get_question_list_kb(faq_list, course_id=None)
 
-    if isinstance(event, types.CallbackQuery):
-        await event.message.edit_text(text, reply_markup=kb if 'kb' in locals() else None)
-        await event.answer()
-    else:
-        await event.answer(text, reply_markup=kb if 'kb' in locals() else None)
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
 
 
-@router.message(F.text.lower().contains("питання") | 
-                F.text.lower().contains("часті запит") | 
-                F.text.lower().contains("faq"))
-async def default_faq_text(message: types.Message):
-    await default_faq_list(message)      
-
-
-@router.callback_query(F.data.startswith("faq_item_"))
+# Перегляд конкретного питання (Загальне)
+# callback формат: faq_None_item_{index} (бо course_id=None)
+@router.callback_query(F.data.startswith("faq_None_item_"))
 async def default_faq_item(callback: types.CallbackQuery):
     try:
         idx = int(callback.data.split("_")[-1])
@@ -40,15 +34,12 @@ async def default_faq_item(callback: types.CallbackQuery):
         item = faq_list[idx]
 
         text = f"<b>{item['question']}</b>\n\n{item['answer']}"
-        kb = get_back_to_list_kb("faq")
-        await callback.message.edit_text(
-            text,
-            parse_mode="HTML",
-            reply_markup=kb
-        )
+
+        # Кнопка повернення до списку загальних питань
+        kb = get_back_to_list_kb("faq_general")
+
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
     except (ValueError, IndexError):
-        await callback.message.edit_text(
-            "Питання не знайдено.",
-            reply_markup=kb
-        )
+        await callback.message.edit_text("Питання не знайдено.", reply_markup=get_back_to_list_kb("faq_general"))
+
     await callback.answer()

@@ -1,97 +1,618 @@
+# from aiogram import Router, types, F
+# from aiogram.enums import ParseMode
+# from aiogram.fsm.context import FSMContext
+# from html import unescape
+#
+# from config import COURSE_CONFIG, DEFAULT_QUESTIONS
+# from keyboards.reply import get_request_contact_kb
+# from states import LNDStates
+# from parser import Parser
+#
+# # Імпортуємо клавіатури
+# from keyboards.inline import (
+#     get_courses_list_kb,
+#     get_course_details_kb,
+#     get_knowledge_kb,
+#     get_back_to_course_kb,  # Переконайся, що додав цю функцію в inline.py
+#     get_question_list_kb,
+#     get_back_to_list_kb
+# )
+#
+# # Імпортуємо функцію для "чистого" надсилання (з common.py)
+# # УВАГА: Переконайся, що в handlers/common.py є функція send_interface_message
+# from handlers.common import send_interface_message
+#
+# router = Router()
+# parser = Parser()
+#
+# # Завантажуємо курси при старті
+# courses_list = parser.parse_courses()
+# active_courses = [c for c in courses_list if not c['is_time_expired']]
+#
+#
+# # --- 1. СПИСОК КУРСІВ (Вхід з головного меню) ---
+# @router.message(F.text.contains("Список наявних курсів"))
+# async def show_courses_list(message: types.Message, state: FSMContext):
+#     await state.set_state(LNDStates.course_list)
+#     # Використовуємо функцію з common.py, щоб видалити старі кнопки меню
+#     await send_interface_message(
+#         state, message,
+#         "📚 <b>Актуальні курси Sigma Software University:</b>\nОберіть курс, щоб дізнатися деталі:",
+#         get_courses_list_kb(active_courses)
+#     )
+#
+#
+# # --- 2. ДЕТАЛІ КУРСУ (Перехід зі списку або повернення кнопкою "Назад") ---
+# # Ця функція обробляє і відкриття курсу, і повернення до нього з підменю
+# async def render_course_details(target: types.Message | types.CallbackQuery, cid: int, state: FSMContext):
+#     course = next((item for item in courses_list if item["postId"] == cid), None)
+#
+#     if not course:
+#         if isinstance(target, types.CallbackQuery):
+#             await target.answer("Курс не знайдено.")
+#         return
+#
+#     await state.set_state(LNDStates.current_course)
+#     await state.update_data(current_course_id=cid)
+#     print(course)
+#     text = (
+#         f"📘 <b>{course['title']}</b>\n\n"
+#         f"{unescape(course['content'][:500])}... <a href='{course['permalink']}'>Читати далі ➡️</a>\n\n"
+#         f"📅 Старт: <b>{course['date_start']}</b>\n"
+#         f"💻 Формат: <b>{course['location']}</b>\n"
+#         f"🕐 Тривалість: <b>{course['duration']}</b>"
+#     )
+#
+#     kb = get_course_details_kb(cid)
+#
+#     if isinstance(target, types.CallbackQuery):
+#         # РЕДАГУЄМО старе повідомлення (список або тест) на курс
+#         await target.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML,
+#                                        link_preview_options=types.LinkPreviewOptions(is_disabled=True))
+#     else:
+#         await target.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+#
+#
+# # Хендлер для натискання на кнопку курсу
+# @router.callback_query(F.data.startswith("course_"))
+# async def show_course_details(callback: types.CallbackQuery, state: FSMContext):
+#     cid = int(callback.data.split("_")[1])
+#     await render_course_details(callback, cid, state)
+#
+#
+# # Хендлер для кнопки "Назад до курсу" (з тестів, FAQ тощо)
+# @router.callback_query(F.data.startswith("back_to_course_"))
+# async def back_to_course_handler(callback: types.CallbackQuery, state: FSMContext):
+#     cid = int(callback.data.split("_")[-1])
+#     await render_course_details(callback, cid, state)
+#
+#
+# # --- 3. ПОВЕРНЕННЯ ДО СПИСКУ КУРСІВ ---
+# @router.callback_query(F.data == "back_to_list")
+# async def back_to_list(callback: types.CallbackQuery, state: FSMContext):
+#     await state.set_state(LNDStates.course_list)
+#     await callback.message.edit_text(
+#         "📚 <b>Актуальні курси Sigma Software University:</b>",
+#         reply_markup=get_courses_list_kb(active_courses),
+#         parse_mode=ParseMode.HTML
+#     )
+#
+#
+# # # --- 4. ЦІНА ТА ОПЛАТА (Просто інфо, кнопки курсу ЛИШАЮТЬСЯ) ---
+# # # Ти просив, щоб тут нічого не зникало, просто приходило повідомлення
+# # @router.callback_query(F.data.startswith("price_"))
+# # async def show_price(callback: types.CallbackQuery):
+# #     cid = int(callback.data.split("_")[1])
+# #     course = next((item for item in courses_list if item["postId"] == cid), None)
+# #
+# #     if course:
+# #         price = course.get('price_current', course.get('free_price', 'Безкоштовно'))
+# #         curr = course.get('currency', '')
+# #         await callback.answer(f"💰 Вартість: {price} {curr}", show_alert=True)
+# #     else:
+# #         await callback.answer("Інформація відсутня", show_alert=True)
+# # --- 4. ЦІНА ТА ОПЛАТА ---
+# @router.callback_query(F.data.startswith("price_"))
+# async def show_price(callback: types.CallbackQuery):
+#     cid = int(callback.data.split("_")[1])
+#
+#     # Знаходимо курс
+#     course = next((item for item in active_courses if item["postId"] == cid), None)
+#
+#     if not course:
+#         await callback.answer("Інформація відсутня", show_alert=True)
+#         return
+#
+#     # Отримуємо дані
+#     price_original = course.get('price_original')
+#     price_current = course.get('price_current')
+#     currency = course.get('currency', 'грн')
+#     free_price = course.get('free_price')
+#
+#     # Логіка формування тексту
+#     text = ""
+#
+#     # СЦЕНАРІЙ 1: Є знижка (стара ціна != нова ціна)
+#     if price_original and price_current and str(price_original) != str(price_current):
+#         text = (
+#             f"💳 ВАРТІСТЬ КУРСУ\n\n"  # Заголовок
+#             f"🔥 ЗНИЖКА!\n"
+#             f"❌ Було: {price_original} {currency}\n"
+#             f"✅ Зараз: {price_current} {currency}"
+#         )
+#
+#     # СЦЕНАРІЙ 2: Просто ціна (без знижки)
+#     elif price_current:
+#         text = (
+#             f"💳 ВАРТІСТЬ КУРСУ\n\n"  # Заголовок
+#             f"💰 Ціна: {price_current} {currency}"
+#         )
+#
+#     # СЦЕНАРІЙ 3: Безкоштовно або немає ціни
+#     else:
+#         val = free_price if free_price else "Уточнюйте у менеджера"
+#         text = (
+#             f"💳 ВАРТІСТЬ КУРСУ\n\n"  # Заголовок
+#             f"ℹ️ {val}"
+#         )
+#
+#     # Відправляємо як Alert
+#     await callback.answer(text, show_alert=True)
+#     await callback.answer(text, show_alert=True)
+#
+#
+# # --- 5. СПОСОБИ ОПЛАТИ ---
+# @router.callback_query(F.data.startswith("pay_"))
+# async def show_payment(callback: types.CallbackQuery):
+#     cid = int(callback.data.split("_")[1])
+#
+#     # Знаходимо курс
+#     course = next((item for item in active_courses if item["postId"] == cid), None)
+#
+#     if not course:
+#         await callback.answer("Інформація відсутня", show_alert=True)
+#         return
+#
+#     # Логіка (як у вашому старому коді)
+#     enable_payment_by_part = course.get('enable_payment_by_part', False)
+#
+#     # Формуємо текст без HTML, але з гарною структурою
+#     text = "💳 СПОСОБИ ОПЛАТИ\n\n"  # Заголовок
+#
+#     # Список методів
+#     text += "1. Карткою на сайті\n"
+#     text += "2. Рахунок-фактура (B2B)\n"
+#
+#     # Додаткова опція (якщо увімкнена)
+#     if enable_payment_by_part:
+#         text += "3. ✅ Доступна оплата частинами\n"
+#
+#     # Важлива інформація (замість курсиву та bold використовуємо відступи та знаки)
+#     text += "\n🎫 ПРОМОКОД:\n"
+#     text += "Якщо маєте код на знижку — введіть його при оплаті на сайті.\n\n"
+#
+#     text += "⚠️ Бот не приймає кошти!"
+#
+#     # Відправляємо спливаюче вікно
+#     await callback.answer(text, show_alert=True)
+#
+#
+# # Обробка кнопки "Зв'язатися з менеджером" (з меню курсу)
+# @router.callback_query(F.data.startswith("contact_manager_course_"))
+# async def contact_manager_from_course(callback: types.CallbackQuery, state: FSMContext):
+#     # Отримуємо ID курсу
+#     cid = int(callback.data.split("_")[-1])
+#
+#
+#     # Зберігаємо ID курсу
+#     await state.update_data(current_course_id=cid)
+#
+#     selected_course = next((c for c in active_courses if c['postId'] == cid), None)
+#
+#     if selected_course:
+#         await state.update_data(
+#             support_course_title=selected_course['title'],  # Назва
+#             support_course_link=selected_course['permalink']  # Посилання
+#         )
+#
+#     await state.set_state(LNDStates.waiting_for_support_contact)
+#
+#
+#
+#     # 1. Прибираємо inline-кнопки курсу, пишемо інструкцію
+#     await callback.message.edit_text(
+#         "📞 <b>Зв'язок з менеджером</b>\n"
+#         "Для зв'язку з вами, нам потрібен ваш номер телефону.\n\n"
+#         "👇 Натисніть кнопку <b>«📱 Надіслати свій контакт»</b> знизу екрану.\n"
+#         "Або натисніть «Назад в меню» для скасування.",
+#         reply_markup=None,
+#         parse_mode="HTML"
+#     )
+#
+#     # 2. Відкриваємо нижню клавіатуру для запиту контакту
+#     msg = await callback.message.answer("Очікую контакт 👇", reply_markup=get_request_contact_kb())
+#
+#     # Зберігаємо ID повідомлення (щоб видалити потім, якщо треба, через common.py)
+#     await state.update_data(last_interface_message_id=msg.message_id)
+#     await callback.answer()
+#
+#
+# # --- 5. ТЕСТ НА ВІДПОВІДНІСТЬ (Логіка зі старого коду + Структура нового) ---
+#
+# # 🛠 Допоміжна функція (визначає рівень курсу: 0=Beginner, 1=Middle, 2=Advanced)
+# def get_min_course_level(seniority_list: list) -> int:
+#     slugs = [s['slug'] for s in seniority_list]
+#     if 'beginner' in slugs:
+#         return 0
+#     elif 'middle' in slugs:
+#         return 1
+#     elif 'advanced' in slugs:
+#         return 2
+#     return 0  # За замовчуванням
+#
+#
+# # 1. СТАРТ ТЕСТУ (Питання 1)
+# @router.callback_query(F.data.startswith("check_"))
+# async def start_check_logic(callback: types.CallbackQuery, state: FSMContext):
+#     cid = int(callback.data.split("_")[1])
+#     await state.set_state(LNDStates.check_knowledge)
+#
+#     # Зберігаємо ID курсу в стан, щоб не загубити
+#     await state.update_data(current_course_id=cid)
+#
+#     # Знаходимо питання для цього курсу
+#     questions = COURSE_CONFIG.get(cid, DEFAULT_QUESTIONS)
+#
+#     course = next((item for item in courses_list if item["postId"] == cid), None) # переробити отримання назви через state current_course_id
+#
+#     text = (
+#         f"🎯 <b>Тест на відповідність курсу «{course['title']}»</b>\n\n"
+#         f"1️⃣ {questions['q1']}"
+#     )
+#
+#     # Клавіатура з варіантами відповіді (0, 1, 2)
+#     # Передаємо cid, якщо у твоїй клавіатурі є кнопка "Назад"
+#     kb = get_knowledge_kb(course_id=cid)
+#
+#     await callback.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+#
+#
+# # 2. ПИТАННЯ 2
+# @router.callback_query(LNDStates.check_knowledge)
+# async def ask_q2(callback: types.CallbackQuery, state: FSMContext):
+#     # Отримуємо відповідь на 1-ше питання (0, 1 або 2) із callback data
+#     # Припускаємо, що кнопки повертають щось типу "ans_0", "ans_1" або просто цифри
+#     # Якщо у тебе кнопки просто "0", "1", "2" -> то int(callback.data)
+#     # Якщо формат "score_1", "score_2" -> то спліт.
+#     # 👇 АДАПТУЙ ЦЕЙ РЯДОК ПІД СВОЮ КЛАВІАТУРУ get_knowledge_kb 👇
+#     score_1 = int(callback.data.split("_")[-1])
+#
+#     await state.update_data(score_1=score_1)
+#     await state.set_state(LNDStates.check_experience)
+#
+#     data = await state.get_data()
+#     cid = data.get("current_course_id")
+#     questions = COURSE_CONFIG.get(cid, DEFAULT_QUESTIONS)
+#
+#     text = f"2️⃣ {questions['q2']}"
+#     kb = get_knowledge_kb(course_id=cid)
+#
+#     await callback.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+#
+#
+# # 3. ПИТАННЯ 3
+# @router.callback_query(LNDStates.check_experience)
+# async def ask_q3(callback: types.CallbackQuery, state: FSMContext):
+#     score_2 = int(callback.data.split("_")[-1])
+#     await state.update_data(score_2=score_2)
+#     await state.set_state(LNDStates.check_extra)
+#
+#     data = await state.get_data()
+#     cid = data.get("current_course_id")
+#     questions = COURSE_CONFIG.get(cid, DEFAULT_QUESTIONS)
+#
+#     text = f"3️⃣ {questions['q3']}"
+#     kb = get_knowledge_kb(course_id=cid)
+#
+#     await callback.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+#
+#
+# # 4. ФІНАЛ (Розрахунок результату)
+# @router.callback_query(LNDStates.check_extra)
+# async def finish_check(callback: types.CallbackQuery, state: FSMContext):
+#     score_3 = int(callback.data.split("_")[-1])
+#
+#     data = await state.get_data()
+#     score_1 = data.get("score_1", 0)
+#     score_2 = data.get("score_2", 0)
+#     cid = data.get("current_course_id")
+#
+#     # Знаходимо сам об'єкт курсу, щоб дізнатися його рівень (Seniority)
+#     course = next((item for item in active_courses if item["postId"] == cid), None)
+#
+#     if not course:
+#         await callback.message.edit_text("Помилка: курс не знайдено.")
+#         return
+#
+#     # --- МАТЕМАТИКА (Зі старого коду) ---
+#     # 1. Рахуємо рівень користувача (0, 1 або 2)
+#     avg_score = (score_1 + score_2 + score_3) / 3
+#     user_level = round(avg_score)
+#
+#     # 2. Рахуємо рівень курсу (0=Beginner, 1=Middle, 2=Advanced)
+#     course_level = get_min_course_level(course.get('seniority', []))
+#
+#     # Отримуємо гарну назву рівня для тексту
+#     level_name = course.get('seniority', [{'name': 'Middle'}])[0]['name']
+#
+#     res_text = ""
+#
+#     # --- ЛОГІКА ПОРІВНЯННЯ ---
+#
+#     # Ситуація А: Користувач слабший за курс
+#     if user_level < course_level:
+#         res_text = (
+#             f"⚠️ <b>Вам може бути складно.</b>\n\n"
+#             f"Цей курс розрахований на рівень <b>{level_name}</b>.\n"
+#             f"Ваші відповіді вказують на те, що вам може бракувати необхідної бази. "
+#             f"Радимо переглянути програму детальніше або почати з простішого курсу."
+#         )
+#
+#     # Ситуація Б: Курс для новачків, а користувач профі (User=2, Course=0)
+#     elif course_level == 0 and user_level >= 2:
+#         res_text = (
+#             f"⚠️ <b>Курс може бути залегким.</b>\n\n"
+#             f"Це програма для старту з нуля. Судячи з ваших відповідей (3/3 балів), "
+#             f"вам може бути нудно на перших модулях. Але якщо хочете систематизувати знання — велкам!"
+#         )
+#
+#     # Ситуація В: Ідеальний метч
+#     else:
+#         res_text = (
+#             f"✅ <b>Це ідеальний метч!</b>\n\n"
+#             f"Ваш поточний рівень чудово відповідає вимогам програми «{course['title']}». "
+#             f"Ви зможете засвоювати матеріал у комфортному темпі."
+#         )
+#
+#     # Кнопка "Назад до курсу"
+#     kb = get_back_to_course_kb(cid)
+#
+#     await callback.message.edit_text(res_text, reply_markup=kb, parse_mode=ParseMode.HTML)
+#
+#
+# # --- 6. FAQ КУРСУ (Курс зникає -> З'являється FAQ) ---
+#
+# # Допоміжна функція відображення списку
+# async def perform_show_course_faq(event: types.Message | types.CallbackQuery, cid: int):
+#     # Шукаємо курс у списку
+#     course = next((item for item in courses_list if item["postId"] == cid), None)
+#
+#     if not course:
+#         if isinstance(event, types.CallbackQuery):
+#             await event.answer("Курс не знайдено.")
+#         return
+#
+#     # !!! ТВОЯ ЛОГІКА: беремо питання за посиланням курсу !!!
+#     # Якщо parser.parse_faq вміє приймати url - це спрацює
+#     faq_list = parser.parse_faq(course.get("permalink") or course.get("url"))
+#
+#     if not faq_list:
+#         text = "Питання відсутні для цього курсу."
+#         # Все одно даємо кнопку назад до курсу
+#         kb = get_back_to_course_kb(cid)
+#     else:
+#         text = f"❓ <b>FAQ курсу «{course['title']}»:</b>"
+#         # Передаємо cid, щоб працювала кнопка "Назад до курсу"
+#         kb = get_question_list_kb(faq_list, course_id=cid)
+#
+#     if isinstance(event, types.CallbackQuery):
+#         await event.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+#     else:
+#         await event.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+#
+#
+# # Хендлер списку питань (Callback)
+# @router.callback_query(F.data.startswith("faq_") & ~F.data.contains("general") & ~F.data.contains("item"))
+# async def show_course_faq(callback: types.CallbackQuery):
+#     cid = int(callback.data.split("_")[1])
+#     await perform_show_course_faq(callback, cid)
+#
+#
+# # Хендлер відповіді на питання (Callback)
+# @router.callback_query(F.data.regexp(r"^faq_\d+_item_\d+$"))
+# async def show_course_faq_item(callback: types.CallbackQuery):
+#     parts = callback.data.split("_")
+#     cid = int(parts[1])
+#     idx = int(parts[3])
+#
+#     course = next((item for item in courses_list if item["postId"] == cid), None)
+#
+#     if course:
+#         # Знову парсимо, щоб знайти відповідь (або краще кешувати, але робимо як ти просив)
+#         faq_list = parser.parse_faq(course.get("permalink") or course.get("url"))
+#
+#         try:
+#             item = faq_list[idx]
+#             text = f"<b>{item['question']}</b>\n\n{item['answer']}"
+#
+#             # Кнопка повернення до списку питань цього курсу
+#             kb = get_back_to_list_kb(f"faq_{cid}")
+#
+#             await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+#         except (IndexError, TypeError):
+#             await callback.message.answer("Помилка відображення питання.")
+#
+#     await callback.answer()
+
+
+
 from aiogram import Router, types, F
 from aiogram.enums import ParseMode
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-
-from config import COURSE_CONFIG, DEFAULT_QUESTIONS
-from states import LNDStates
-
 from html import unescape
 
+from config import COURSE_CONFIG, DEFAULT_QUESTIONS
+from keyboards.reply import get_request_contact_kb, get_main_menu_kb
+from states import LNDStates
+from parser import Parser
+
+# Імпортуємо клавіатури
 from keyboards.inline import (
     get_courses_list_kb,
     get_course_details_kb,
     get_knowledge_kb,
+    get_back_to_course_kb,
     get_question_list_kb,
     get_back_to_list_kb
 )
 
-from parser import Parser
+# Імпортуємо функцію для "чистого" надсилання
+from handlers.common import send_interface_message
 
 router = Router()
 parser = Parser()
 
+# Завантажуємо курси при старті
 courses_list = parser.parse_courses()
-
 active_courses = [c for c in courses_list if not c['is_time_expired']]
 
-# Сценарій 2: Список курсів
-@router.message(F.text.lower().contains("хочу курс") | 
-                (F.text.lower().contains("список") & F.text.lower().contains("курсів")) | 
-                F.text.lower().contains("курси") | 
+
+# --- 1. СПИСОК КУРСІВ (Вхід з головного меню + Текстові тригери) ---
+@router.message(~StateFilter(LNDStates.waiting_for_support_reason),
+                F.text.contains("Список наявних курсів") |
+                F.text.lower().contains("хочу курс") |
+                (F.text.lower().contains("список") & F.text.lower().contains("курсів")) |
+                F.text.lower().contains("курси") |
                 F.text.lower().contains("каталог"))
 async def show_courses_list(message: types.Message, state: FSMContext):
+    # --- ФІКС КЛАВІАТУРИ ---
+    # Якщо юзер був у стані надсилання контакту, примусово повертаємо головне меню
+    current_state = await state.get_state()
+    if current_state == LNDStates.waiting_for_support_contact:
+        await message.answer("", reply_markup=get_main_menu_kb()) # 🔄 Меню оновлено
+    # -----------------------
+
     await state.set_state(LNDStates.course_list)
-    await message.answer("Ось актуальні курси Sigma Software University:", reply_markup=get_courses_list_kb(active_courses))
+    # Використовуємо функцію з common.py
+    await send_interface_message(
+        state, message,
+        "📚 <b>Актуальні курси Sigma Software University:</b>\nОберіть курс, щоб дізнатися деталі:",
+        get_courses_list_kb(active_courses)
+    )
 
 
-# Сценарій 3 & 6: Деталі курсу
+# --- 2. ДЕТАЛІ КУРСУ ---
+async def render_course_details(target: types.Message | types.CallbackQuery, cid: int, state: FSMContext):
+    course = next((item for item in courses_list if item["postId"] == cid), None)
+
+    if not course:
+        if isinstance(target, types.CallbackQuery):
+            await target.answer("Курс не знайдено.")
+        return
+
+    await state.set_state(LNDStates.current_course)
+    await state.update_data(current_course_id=cid)
+
+    text = (
+        f"📘 <b>{course['title']}</b>\n\n"
+        f"{unescape(course['content'][:500])}... <a href='{course['permalink']}'>Читати далі ➡️</a>\n\n"
+        f"📅 Старт: <b>{course['date_start']}</b>\n"
+        f"💻 Формат: <b>{course['location']}</b>\n"
+        f"🕐 Тривалість: <b>{course['duration']}</b>"
+    )
+
+    kb = get_course_details_kb(cid)
+
+    if isinstance(target, types.CallbackQuery):
+        await target.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML,
+                                       link_preview_options=types.LinkPreviewOptions(is_disabled=True))
+    else:
+        await target.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
+
 @router.callback_query(F.data.startswith("course_"))
 async def show_course_details(callback: types.CallbackQuery, state: FSMContext):
     cid = int(callback.data.split("_")[1])
-    course = next((item for item in courses_list if item["postId"] == cid), None)
+    await render_course_details(callback, cid, state)
 
-    if (course):
-        await state.set_state(LNDStates.current_course)
-        await state.update_data(current_course_id=cid)
 
+@router.callback_query(F.data.startswith("back_to_course_"))
+async def back_to_course_handler(callback: types.CallbackQuery, state: FSMContext):
+    cid = int(callback.data.split("_")[-1])
+    await render_course_details(callback, cid, state)
+
+
+# --- 3. ПОВЕРНЕННЯ ДО СПИСКУ КУРСІВ ---
+@router.callback_query(F.data == "back_to_list")
+async def back_to_list(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(LNDStates.course_list)
+    await callback.message.edit_text(
+        "📚 <b>Актуальні курси Sigma Software University:</b>",
+        reply_markup=get_courses_list_kb(active_courses),
+        parse_mode=ParseMode.HTML
+    )
+
+
+# --- 4. ЦІНА ТА ОПЛАТА (Універсальна функція) ---
+async def perform_show_price(event: types.Message | types.CallbackQuery, cid: int):
+    # Знаходимо курс
+    course = next((item for item in active_courses if item["postId"] == cid), None)
+
+    if not course:
+        if isinstance(event, types.CallbackQuery):
+            await event.answer("Інформація відсутня", show_alert=True)
+        else:
+            await event.answer("Інформація відсутня")
+        return
+
+    # Отримуємо дані
+    price_original = course.get('price_original')
+    price_current = course.get('price_current')
+    currency = course.get('currency', 'грн')
+    free_price = course.get('free_price')
+
+    text = ""
+    # СЦЕНАРІЙ 1: Є знижка
+    if price_original and price_current and str(price_original) != str(price_current):
         text = (
-            f"📘<b>{course['title']}</b>\n\n"
-            f"{unescape(course['content'])} <a href='{course['permalink']}'>сайт курсу</a>\n\n"
-            f"📅 Старт: <b>{course['date_start']}, {course['time_start']}</b>\n"
-            f"💻 Формат: <b>{course['location']}</b>\n"
-            f"🕐 Тривалість: <b>{course['duration']}</b>\n"
+            f"💳 ВАРТІСТЬ КУРСУ\n\n"
+            f"🔥 ЗНИЖКА!\n"
+            f"❌ Було: {price_original} {currency}\n"
+            f"✅ Зараз: {price_current} {currency}"
+        )
+    # СЦЕНАРІЙ 2: Просто ціна
+    elif price_current:
+        text = (
+            f"💳 ВАРТІСТЬ КУРСУ\n\n"
+            f"💰 Ціна: {price_current} {currency}"
+        )
+    # СЦЕНАРІЙ 3: Безкоштовно або немає ціни
+    else:
+        val = free_price if free_price else "Уточнюйте у менеджера"
+        text = (
+            f"💳 ВАРТІСТЬ КУРСУ\n\n"
+            f"ℹ️ {val}"
         )
 
-        await callback.message.edit_text(text, reply_markup=get_course_details_kb(cid), parse_mode=ParseMode.HTML, link_preview_options=types.LinkPreviewOptions(is_disabled=True))
+    if isinstance(event, types.CallbackQuery):
+        await event.answer(text, show_alert=True)
     else:
-        await callback.message.edit_text("Something went wrong")
+        await event.answer(text, parse_mode=ParseMode.HTML)
 
 
-# Сценарій 4: Вартість
-async def perform_show_price(event: types.Message | types.CallbackQuery, cid: int):
-    course = next((item for item in courses_list if item["postId"] == cid), None)
-
-    if (course):
-
-        price_original = course['price_original']
-        price_current = course['price_current']
-        currency = course['currency']
-
-        if (price_original and price_current and price_current != price_original):
-            text = f"💰 Вартість навчання: <s>{price_original}</s> <b>{price_current} {currency}</b>\n"
-        elif (price_current):
-            text = f"💰 Вартість навчання: <b>{price_current} {currency}</b> \n"
-        else:
-            price = course['free_price']
-            text = f"💰 Вартість навчання: <b>{price}</b>\n"
-    
-        if isinstance(event, types.CallbackQuery):
-            await event.message.answer(text, parse_mode=ParseMode.HTML)
-            await event.answer()
-        else:
-            await event.answer(text, parse_mode=ParseMode.HTML)
-
-# Виклик через callback
+# Виклик кнопкою
 @router.callback_query(F.data.startswith("price_"))
 async def show_price(callback: types.CallbackQuery):
     cid = int(callback.data.split("_")[1])
     await perform_show_price(callback, cid)
 
-# Виклик через message
-@router.message(LNDStates.current_course, 
-                F.text.lower().contains("скільки коштує") | 
+
+# Виклик текстом
+@router.message(LNDStates.current_course,
+                F.text.lower().contains("скільки коштує") |
                 F.text.lower().contains("вартість") |
-                F.text.lower().contains("оплата") | 
+                F.text.lower().contains("оплата") |
                 F.text.lower().contains("ціна"))
 async def text_price(message: types.Message, state: FSMContext):
     data = await state.get_data()
@@ -100,51 +621,84 @@ async def text_price(message: types.Message, state: FSMContext):
         await perform_show_price(message, cid)
 
 
-# Сценарій 5: Оплата
-async def perform_show_payment_methods(event: types.Message | types.CallbackQuery, cid: int):
-    course = next((item for item in courses_list if item["postId"] == cid), None)
+# --- 5. СПОСОБИ ОПЛАТИ (Універсальна функція) ---
+async def perform_show_payment(event: types.Message | types.CallbackQuery, cid: int):
+    course = next((item for item in active_courses if item["postId"] == cid), None)
 
-    if (course):
-        enable_payment_by_part = course['enable_payment_by_part']
-        text = (
-            "💳 <b>Способи оплати:</b>\n"
-            "1. Карткою на сайті.\n"
-            "2. Рахунок-фактура (B2B).\n"  
-        )
-
-        if(enable_payment_by_part):
-            text += "3. Доступна оплата частинами\n"
-
-        text += ("\n🎫 <i><b>Якщо у вас є персональний промокод на знижку, будь ласка, введіть його в поле коментарів реєстраційної форми на сайті</b></i>  \n \n"
-            "⚠️ <i><b>Бот не приймає кошти</b></i>")
-        
+    if not course:
         if isinstance(event, types.CallbackQuery):
-            await event.message.answer(text, parse_mode=ParseMode.HTML)
-            await event.answer()
-        else:
-            await event.answer(text, parse_mode=ParseMode.HTML)
+            await event.answer("Інформація відсутня", show_alert=True)
+        return
 
-# Виклик через callback
+    enable_payment_by_part = course.get('enable_payment_by_part', False)
+
+    text = "💳 СПОСОБИ ОПЛАТИ\n\n"
+    text += "1. Карткою на сайті\n"
+    text += "2. Рахунок-фактура (B2B)\n"
+
+    if enable_payment_by_part:
+        text += "3. ✅ Доступна оплата частинами\n"
+
+    text += "\n🎫 ПРОМОКОД:\n"
+    text += "Якщо маєте код на знижку — введіть його при оплаті на сайті.\n\n"
+    text += "⚠️ Бот не приймає кошти!"
+
+    if isinstance(event, types.CallbackQuery):
+        await event.answer(text, show_alert=True)
+    else:
+        await event.answer(text, parse_mode=ParseMode.HTML)
+
+
+# Виклик кнопкою
 @router.callback_query(F.data.startswith("pay_"))
-async def show_payment_methods(callback: types.CallbackQuery):
+async def show_payment(callback: types.CallbackQuery):
     cid = int(callback.data.split("_")[1])
-    await perform_show_payment_methods(callback, cid)
+    await perform_show_payment(callback, cid)
 
-# Виклик через message
-@router.message(LNDStates.current_course, 
-                F.text.lower().contains("способи оплати") | 
-                F.text.lower().contains("методи оплати") | 
+
+# Виклик текстом
+@router.message(LNDStates.current_course,
+                F.text.lower().contains("способи оплати") |
+                F.text.lower().contains("методи оплати") |
                 F.text.lower().contains("оплатити"))
 async def text_payment_methods(message: types.Message, state: FSMContext):
     data = await state.get_data()
     cid = data.get("current_course_id")
     if cid:
-        await perform_show_payment_methods(message, cid)
+        await perform_show_payment(message, cid)
 
 
-# --- СЦЕНАРІЙ 7: Глибока перевірка (3 питання) ---
+# --- ЗВ'ЯЗОК З МЕНЕДЖЕРОМ ---
+@router.callback_query(F.data.startswith("contact_manager_course_"))
+async def contact_manager_from_course(callback: types.CallbackQuery, state: FSMContext):
+    cid = int(callback.data.split("_")[-1])
+    await state.update_data(current_course_id=cid)
 
-# Допоміжна функція для визначення мінімального рівня курсу
+    selected_course = next((c for c in active_courses if c['postId'] == cid), None)
+    if selected_course:
+        await state.update_data(
+            support_course_title=selected_course['title'],
+            support_course_link=selected_course['permalink']
+        )
+
+    await state.set_state(LNDStates.waiting_for_support_contact)
+
+    await callback.message.edit_text(
+        "📞 <b>Зв'язок з менеджером</b>\n"
+        "Для зв'язку з вами, нам потрібен ваш номер телефону.\n\n"
+        "👇 Натисніть кнопку <b>«📱 Надіслати свій контакт»</b> знизу екрану.\n"
+        "Або натисніть «Назад в меню» для скасування.",
+        reply_markup=None,
+        parse_mode="HTML"
+    )
+
+    msg = await callback.message.answer("Очікую контакт 👇", reply_markup=get_request_contact_kb())
+    await state.update_data(last_interface_message_id=msg.message_id)
+    await callback.answer()
+
+
+# --- 5. ТЕСТ НА ВІДПОВІДНІСТЬ (Універсальна функція) ---
+
 def get_min_course_level(seniority_list: list) -> int:
     slugs = [s['slug'] for s in seniority_list]
     if 'beginner' in slugs:
@@ -156,166 +710,166 @@ def get_min_course_level(seniority_list: list) -> int:
     return 0
 
 
-# ----------------- ПИТАННЯ 1 -----------------
-async def perform_start_check(event: types.Message | types.CallbackQuery, state: FSMContext):
+# 1. СТАРТ ТЕСТУ (Питання 1)
+async def perform_start_check(event: types.Message | types.CallbackQuery, state: FSMContext, cid: int = None):
     await state.set_state(LNDStates.check_knowledge)
 
-    data = await state.get_data()
-    cid = data.get("current_course_id")
-    course = next((item for item in courses_list if item["postId"] == cid), None)
+    # Якщо викликали кнопкою, CID в кнопці. Якщо текстом - беремо зі стейту
+    if cid:
+        await state.update_data(current_course_id=cid)
+    else:
+        data = await state.get_data()
+        cid = data.get("current_course_id")
 
-    if not course:
-        await event.answer("Спочатку оберіть курс.")
+    if not cid:
+        if isinstance(event, types.Message): await event.answer("Курс не обрано")
         return
 
     questions = COURSE_CONFIG.get(cid, DEFAULT_QUESTIONS)
+    course = next((item for item in courses_list if item["postId"] == cid), None)
 
     text = (
         f"🎯 <b>Тест на відповідність курсу «{course['title']}»</b>\n\n"
         f"1️⃣ {questions['q1']}"
     )
-
-    # Використовуємо клавіатуру (0=Ні, 1=Трохи, 2=Так)
-    kb = get_knowledge_kb()
+    kb = get_knowledge_kb(course_id=cid)
 
     if isinstance(event, types.CallbackQuery):
-        await event.message.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
-        await event.answer()
+        await event.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
     else:
         await event.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
 
+# Виклик кнопкою
 @router.callback_query(F.data.startswith("check_"))
+async def start_check_logic(callback: types.CallbackQuery, state: FSMContext):
+    cid = int(callback.data.split("_")[1])
+    await perform_start_check(callback, state, cid)
+
+
+# Виклик текстом
 @router.message(LNDStates.current_course,
                 F.text.lower().contains("чи підійде") |
-                F.text.lower().contains("рівень"))
-async def start_check(event: types.Message | types.CallbackQuery, state: FSMContext):
-    if isinstance(event, types.CallbackQuery):
-        await perform_start_check(event, state)
-    else:
-        data = await state.get_data()
-        if data.get("current_course_id"):
-            await perform_start_check(event, state)
-        else:
-            await event.answer("Оберіть курс зі списку.")
+                F.text.lower().contains("рівень") |
+                F.text.lower().contains("тест"))
+async def start_check_text(message: types.Message, state: FSMContext):
+    await perform_start_check(message, state)
 
 
-# ----------------- ПИТАННЯ 2 -----------------
+# 2. ПИТАННЯ 2
 @router.callback_query(LNDStates.check_knowledge)
 async def ask_q2(callback: types.CallbackQuery, state: FSMContext):
-    # Зберігаємо бал за 1 питання (0, 1 або 2)
-    score_1 = int(callback.data.split("_")[1])
+    score_1 = int(callback.data.split("_")[-1])
     await state.update_data(score_1=score_1)
-
-    await state.set_state(LNDStates.check_experience)  # Переходимо до 2 питання
+    await state.set_state(LNDStates.check_experience)
 
     data = await state.get_data()
     cid = data.get("current_course_id")
     questions = COURSE_CONFIG.get(cid, DEFAULT_QUESTIONS)
 
     text = f"2️⃣ {questions['q2']}"
+    kb = get_knowledge_kb(course_id=cid)
 
-    # Використовуємо ту саму клавіатуру, або get_experience_kb, якщо вона повертає такі ж значення
-    await callback.message.edit_text(text, reply_markup=get_knowledge_kb(), parse_mode=ParseMode.HTML)
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
 
-# ----------------- ПИТАННЯ 3 (НОВЕ) -----------------
+# 3. ПИТАННЯ 3
 @router.callback_query(LNDStates.check_experience)
 async def ask_q3(callback: types.CallbackQuery, state: FSMContext):
-    # Зберігаємо бал за 2 питання
-    score_2 = int(callback.data.split("_")[1])
+    score_2 = int(callback.data.split("_")[-1])
     await state.update_data(score_2=score_2)
-
-    await state.set_state(LNDStates.check_extra)  # Переходимо до 3 питання
+    await state.set_state(LNDStates.check_extra)
 
     data = await state.get_data()
     cid = data.get("current_course_id")
     questions = COURSE_CONFIG.get(cid, DEFAULT_QUESTIONS)
 
     text = f"3️⃣ {questions['q3']}"
+    kb = get_knowledge_kb(course_id=cid)
 
-    await callback.message.edit_text(text, reply_markup=get_knowledge_kb(), parse_mode=ParseMode.HTML)
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
 
-# ----------------- ФІНАЛ (Розрахунок) -----------------
+# 4. ФІНАЛ
 @router.callback_query(LNDStates.check_extra)
 async def finish_check(callback: types.CallbackQuery, state: FSMContext):
-    # Отримуємо бал за 3 питання
-    score_3 = int(callback.data.split("_")[1])
+    score_3 = int(callback.data.split("_")[-1])
 
     data = await state.get_data()
     score_1 = data.get("score_1", 0)
     score_2 = data.get("score_2", 0)
     cid = data.get("current_course_id")
 
-    # --- МАТЕМАТИКА ---
-    # Максимальна сума балів = 6. Ділимо на 3 питання.
-    # Результат: 0..0.6 -> Beginner (0), 0.7..1.4 -> Middle (1), 1.5..2 -> Advanced (2)
+    course = next((item for item in active_courses if item["postId"] == cid), None)
+
+    if not course:
+        await callback.message.edit_text("Помилка: курс не знайдено.")
+        return
+
     avg_score = (score_1 + score_2 + score_3) / 3
     user_level = round(avg_score)
-
-    # Отримуємо дані про курс
-    course = next((item for item in courses_list if item["postId"] == cid), None)
     course_level = get_min_course_level(course.get('seniority', []))
+    level_name = course.get('seniority', [{'name': 'Middle'}])[0]['name']
 
     res_text = ""
-
-    # Логіка порівняння (та сама, але тепер точніша завдяки 3 питанням)
     if user_level < course_level:
         res_text = (
-            "⚠️ <b>Вам може бути складно.</b>\n\n"
-            f"Курс вимагає рівня <b>{course.get('seniority', [{'name': 'Middle'}])[0]['name']}</b>, а ваші відповіді вказують на те, що вам бракує деяких базових навичок. "
-            "Рекомендуємо підтягнути базу перед стартом."
+            f"⚠️ <b>Вам може бути складно.</b>\n\n"
+            f"Цей курс розрахований на рівень <b>{level_name}</b>.\n"
+            f"Ваші відповіді вказують на те, що вам може бракувати необхідної бази. "
         )
-    elif course_level == 0 and user_level == 2:
+    elif course_level == 0 and user_level >= 2:
         res_text = (
-            "⚠️ <b>Курс може бути залегким.</b>\n\n"
-            "Це програма для старту з нуля. З вашим досвідом (бали 3/3) вам може бути нудно на перших модулях."
+            f"⚠️ <b>Курс може бути залегким.</b>\n\n"
+            f"Це програма для старту з нуля. Судячи з ваших відповідей (3/3 балів), "
+            f"вам може бути нудно на перших модулях."
         )
     else:
         res_text = (
-            "✅ <b>Це ідеальний метч!</b>\n\n"
-            "Ваш рівень знань та досвід чудово відповідають вимогам програми. "
-            "Ви зможете взяти максимум від цього навчання."
+            f"✅ <b>Це ідеальний метч!</b>\n\n"
+            f"Ваш поточний рівень чудово відповідає вимогам програми «{course['title']}»."
         )
 
-    # Додаємо кнопку повернення
-    back_kb = get_course_details_kb(cid)
-
-    await callback.message.edit_text(res_text, reply_markup=back_kb, parse_mode=ParseMode.HTML)
-    await state.set_state(LNDStates.current_course)
-    await callback.answer()
+    kb = get_back_to_course_kb(cid)
+    await callback.message.edit_text(res_text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
 
-# 8. FAQ курсу (список питань) 
+# --- 6. FAQ КУРСУ (Універсальна функція) ---
+
 async def perform_show_course_faq(event: types.Message | types.CallbackQuery, cid: int):
     course = next((item for item in courses_list if item["postId"] == cid), None)
-    
-    if course:
-        faq_list = parser.parse_faq(course["permalink"])
 
-        if not faq_list:
-            text = "Питання відсутні для цього курсу."
-        else:
-            text = "Часті запитання по цьому курсу:"
-            kb = get_question_list_kb(faq_list, course_id=cid)
-
+    if not course:
         if isinstance(event, types.CallbackQuery):
-            await event.message.edit_text(text, reply_markup=kb if 'kb' in locals() else None)
-            await event.answer()
-        else:
-            await event.answer(text, reply_markup=kb if 'kb' in locals() else None)
+            await event.answer("Курс не знайдено.")
+        return
 
-# Виклик через callback
-@router.callback_query((F.data.startswith("faq_") & ~F.data.contains("_item_")))
+    faq_list = parser.parse_faq(course.get("permalink") or course.get("url"))
+
+    if not faq_list:
+        text = "Питання відсутні для цього курсу."
+        kb = get_back_to_course_kb(cid)
+    else:
+        text = f"❓ <b>FAQ курсу «{course['title']}»:</b>"
+        kb = get_question_list_kb(faq_list, course_id=cid)
+
+    if isinstance(event, types.CallbackQuery):
+        await event.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+    else:
+        await event.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
+
+# Хендлер списку питань (Callback)
+@router.callback_query(F.data.startswith("faq_") & ~F.data.contains("general") & ~F.data.contains("item"))
 async def show_course_faq(callback: types.CallbackQuery):
     cid = int(callback.data.split("_")[1])
     await perform_show_course_faq(callback, cid)
 
-# Виклик через message
-@router.message(LNDStates.current_course, 
-                F.text.lower().contains("питання") | 
-                F.text.lower().contains("часті запит") | 
+
+# Хендлер списку питань (Текст)
+@router.message(LNDStates.current_course,
+                F.text.lower().contains("питання") |
+                F.text.lower().contains("часті запит") |
                 F.text.lower().contains("faq"))
 async def text_course_faq(message: types.Message, state: FSMContext):
     data = await state.get_data()
@@ -324,10 +878,8 @@ async def text_course_faq(message: types.Message, state: FSMContext):
         await perform_show_course_faq(message, cid)
 
 
-# 8. FAQ курсу (відповідь на питання)
-@router.callback_query(
-    F.data.regexp(r"^faq_\d+_item_\d+$")
-)
+# Хендлер відповіді на питання (Callback)
+@router.callback_query(F.data.regexp(r"^faq_\d+_item_\d+$"))
 async def show_course_faq_item(callback: types.CallbackQuery):
     parts = callback.data.split("_")
     cid = int(parts[1])
@@ -336,19 +888,13 @@ async def show_course_faq_item(callback: types.CallbackQuery):
     course = next((item for item in courses_list if item["postId"] == cid), None)
 
     if course:
-
-        faq_list = parser.parse_faq(course["permalink"])
-
+        faq_list = parser.parse_faq(course.get("permalink") or course.get("url"))
         try:
             item = faq_list[idx]
             text = f"<b>{item['question']}</b>\n\n{item['answer']}"
+            kb = get_back_to_list_kb(f"faq_{cid}")
+            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+        except (IndexError, TypeError):
+            await callback.message.answer("Помилка відображення питання.")
 
-            await callback.message.edit_text(
-                text,
-                parse_mode="HTML",
-                reply_markup=get_back_to_list_kb(f"faq_{cid}")
-            )
-        except IndexError:
-            await callback.message.edit_text("Питання не знайдено")
-
-        await callback.answer()
+    await callback.answer()
