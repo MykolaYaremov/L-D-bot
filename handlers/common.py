@@ -6,6 +6,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ReplyKeyboardRemove
+from aiogram.enums import ParseMode
 
 from states import LNDStates
 from keyboards.reply import get_main_menu_kb, get_request_contact_kb
@@ -183,8 +184,12 @@ async def back_to_support_menu(callback: types.CallbackQuery, state: FSMContext)
 
 
 @router.message(F.text.contains("Дізнатися деталі мого курсу"))
-async def my_course_handler(message: types.Message, state: FSMContext):
-    await send_interface_message(state, message, "ℹ️ Ця функція ще в розробці.")
+async def my_course_handler(message: types.Message):
+    await message.answer(
+        "ℹ️ На даний момент за вашим акаунтом не закріплено активних курсів.\n\n"
+        "<b>Ви можете обрати новий курс у меню 'Список наявних курсів'.</b>",
+        parse_mode=ParseMode.HTML
+    )
 
 
 # --- ЗАГЛУШКА (FALLBACK) ---
