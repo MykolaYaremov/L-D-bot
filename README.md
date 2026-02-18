@@ -114,7 +114,7 @@ python bot.py
 
 * **Mykola Yaremov**
 * **Volodymyr Karpyshyn**
-* **Julia Povhlib**
+* **Julia Povkhlib**
 * **Nazariy Bilan**
 * **Vladyslav Miller**
 
