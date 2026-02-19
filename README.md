@@ -87,7 +87,7 @@ pip install -r requirements.txt
 Створіть файл `.env` у кореневій папці та додайте свої дані:
 
 ```env
-BOT_TOKEN=ващ_токен_від_BotFather
+BOT_TOKEN=ваш_токен_від_BotFather
 ADMIN_ID=ваш_telegram_id
 
 ```
